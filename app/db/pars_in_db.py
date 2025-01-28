@@ -1,8 +1,7 @@
 from sqlalchemy.orm import Session
-from typing import List
 from contextlib import contextmanager
 from datetime import datetime
-from app.db.session import SessionLocal, CryptoPriceModel 
+from session import SessionLocal, VBRPrice, InvestingPrice, BitInfoPrice
 
 
 class DatabaseManager:
@@ -23,7 +22,7 @@ class DatabaseManager:
         finally:
             db.close()
 
-    def preprocess_prices(self, data: List[dict]) -> List[dict]:
+    def preprocess_prices(self, data: list) -> list:
         """
         Преобразует строковые цены в числа и удаляет лишние пробелы.
         """
@@ -33,39 +32,57 @@ class DatabaseManager:
             item["bitinfo_price"] = float(item["bitinfo_price"].replace(" ", ""))
         return data
 
-    def import_data_to_db(self, data: List[dict]):
+    def import_data_to_db(self, data: list):
         """
-        Импортирует данные в базу данных, обновляя существующие записи по валюте и времени.
+        Импортирует данные в соответствующие таблицы в базе данных.
+        Обновляет записи, если они существуют для валюты.
         """
         with self.get_db_session() as db:
             for item in data:
-                # Проверка, существует ли запись с таким же валютным курсом и временной меткой
-                existing_record = db.query(CryptoPriceModel).filter_by(
-                    currency=item["currency"], 
-                    timestamp=datetime.utcnow().date()  # используем только дату для проверки
-                ).first()
-
-                if existing_record:
-                    # Если запись существует, обновляем её
-                    existing_record.vbr_price = item["vbr_price"]
-                    existing_record.investing_price = item["investing_price"]
-                    existing_record.bitinfo_price = item["bitinfo_price"]
-                    existing_record.timestamp = datetime.utcnow()  # Обновляем временную метку
+                # Запись для VBR
+                vbr_record = db.query(VBRPrice).filter(VBRPrice.currency == item["currency"]).first()
+                if vbr_record:
+                    vbr_record.price = item["vbr_price"]
+                    vbr_record.timestamp = datetime.utcnow()  # Обновляем временную метку
                 else:
-                    # Если записи нет, создаём новую
-                    db_crypto = CryptoPriceModel(
+                    vbr_price = VBRPrice(
                         currency=item["currency"],
-                        vbr_price=item["vbr_price"],
-                        investing_price=item["investing_price"],
-                        bitinfo_price=item["bitinfo_price"],
-                        timestamp=datetime.utcnow()  # Текущий момент времени
+                        price=item["vbr_price"],
+                        timestamp=datetime.utcnow()
                     )
-                    db.add(db_crypto)
-            db.commit()  # Сохраняем изменения в базе данных
+                    db.add(vbr_price)
+
+                # Запись для Investing
+                investing_record = db.query(InvestingPrice).filter(InvestingPrice.currency == item["currency"]).first()
+                if investing_record:
+                    investing_record.price = item["investing_price"]
+                    investing_record.timestamp = datetime.utcnow()  # Обновляем временную метку
+                else:
+                    investing_price = InvestingPrice(
+                        currency=item["currency"],
+                        price=item["investing_price"],
+                        timestamp=datetime.utcnow()
+                    )
+                    db.add(investing_price)
+
+                # Запись для BitInfo
+                bitinfo_record = db.query(BitInfoPrice).filter(BitInfoPrice.currency == item["currency"]).first()
+                if bitinfo_record:
+                    bitinfo_record.price = item["bitinfo_price"]
+                    bitinfo_record.timestamp = datetime.utcnow()  # Обновляем временную метку
+                else:
+                    bitinfo_price = BitInfoPrice(
+                        currency=item["currency"],
+                        price=item["bitinfo_price"],
+                        timestamp=datetime.utcnow()
+                    )
+                    db.add(bitinfo_price)
+
+            db.commit()  # Сохраняем изменения
 
 
 if __name__ == "__main__":
-    from app.parsing import CryptoScraper, CryptoDataProcessor
+    from parsing import CryptoScraper, CryptoDataProcessor
 
     # Создаём экземпляры классов
     scraper = CryptoScraper()
