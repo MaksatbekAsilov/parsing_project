@@ -39,7 +39,7 @@ class CryptoScraper:
         table_rows = soup.select('div:nth-of-type(5) > div > div:nth-of-type(2) > div:nth-of-type(1) > table > tbody > tr')
 
         investing_data = {}
-        for i in range(30):
+        for i in range(20):
             try:
                 currency_name = table_rows[i].select_one('td:nth-of-type(3)').get_text(strip=True)
                 numeric_value = table_rows[i].select_one('td:nth-of-type(4) > span').get_text(strip=True)
@@ -55,7 +55,7 @@ class CryptoScraper:
         rows = soup.select('table tbody tr')
 
         bitinfo_data = {}
-        for i in range(30):
+        for i in range(20):
             try:
                 currency_name = rows[i].select_one('td:nth-of-type(1)').text.strip()
                 short_name = currency_name.split()[0]
