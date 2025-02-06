@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 import dotenv, os
 from datetime import datetime
+from sqlalchemy import literal_column
+from passlib.context import CryptContext  # Для хеширования пароля
 
 dotenv.load_dotenv()
 
@@ -22,6 +24,25 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+# Настройка для хеширования пароля
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
 
 # Модели таблиц
 class VBRPrice(Base):
@@ -45,8 +66,20 @@ class BitInfoPrice(Base):
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=func.now(), nullable=False)
 
-# FastAPI приложение
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
+
+# Разрешаем запросы с любого источника (или можно указать конкретные домены)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Позволяет запросы с любого источника
+    allow_credentials=True,
+    allow_methods=["*"],  # Разрешает все методы (GET, POST и т. д.)
+    allow_headers=["*"],  # Разрешает все заголовки
+)
+
+
 
 # Модели для ответа
 class CryptoPrice(BaseModel):
@@ -163,9 +196,6 @@ def get_min_price(currency: str, db: Session = Depends(get_db)):
         "source": source
     }
 
-
-from sqlalchemy import literal_column
-
 @app.get("/prices/filter")
 def filter_prices(min_price: float = None, max_price: float = None, db: Session = Depends(get_db)):
     # Создаем запросы для каждой таблицы с добавлением названия сайта
@@ -174,7 +204,7 @@ def filter_prices(min_price: float = None, max_price: float = None, db: Session 
         VBRPrice.price, 
         literal_column("'VBR'").label("source")
     ).filter(
-        (min_price is None or VBRPrice.price >= min_price) &
+        (min_price is None or VBRPrice.price >= min_price) & 
         (max_price is None or VBRPrice.price <= max_price)
     )
 
@@ -183,7 +213,7 @@ def filter_prices(min_price: float = None, max_price: float = None, db: Session 
         InvestingPrice.price, 
         literal_column("'Investing'").label("source")
     ).filter(
-        (min_price is None or InvestingPrice.price >= min_price) &
+        (min_price is None or InvestingPrice.price >= min_price) & 
         (max_price is None or InvestingPrice.price <= max_price)
     )
 
@@ -192,7 +222,7 @@ def filter_prices(min_price: float = None, max_price: float = None, db: Session 
         BitInfoPrice.price, 
         literal_column("'BitInfo'").label("source")
     ).filter(
-        (min_price is None or BitInfoPrice.price >= min_price) &
+        (min_price is None or BitInfoPrice.price >= min_price) & 
         (max_price is None or BitInfoPrice.price <= max_price)
     )
 
@@ -224,6 +254,23 @@ def get_top_prices(limit: int = 3, db: Session = Depends(get_db)):
 
     # Limiting results to the specified limit
     return top_prices[:limit]
+
+
+# Регистрация пользователя
+@app.post("/register")  # Должно быть именно @app.post!
+def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User already exists")
+
+    hashed_password = hash_password(user.password)
+    new_user = User(username=user.username, email=user.email, hashed_password=hashed_password)
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {"message": "User registered successfully"}
 
 
 

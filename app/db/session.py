@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Float, Integer, create_engine, DateTime, func
 from sqlalchemy.orm import declarative_base, sessionmaker
 import dotenv, os
+from passlib.context import CryptContext  # Для хеширования пароля
 
 dotenv.load_dotenv()
 
@@ -16,7 +17,16 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Таблица для сайта VBR
+# Модель для пользователя
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+
+# Модели для таблиц цен с разных сайтов
 class VBRPrice(Base):
     __tablename__ = "vbr_prices"
     id = Column(Integer, primary_key=True, index=True)
@@ -24,7 +34,6 @@ class VBRPrice(Base):
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=func.now(), nullable=False)
 
-# Таблица для сайта Investing
 class InvestingPrice(Base):
     __tablename__ = "investing_prices"
     id = Column(Integer, primary_key=True, index=True)
@@ -32,13 +41,18 @@ class InvestingPrice(Base):
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=func.now(), nullable=False)
 
-# Таблица для сайта BitInfo
 class BitInfoPrice(Base):
     __tablename__ = "bitinfo_prices"
     id = Column(Integer, primary_key=True, index=True)
     currency = Column(String, index=True, nullable=False)
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=func.now(), nullable=False)
+
+# Хеширование пароля
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
 # Создание таблиц в базе данных
 if __name__ == "__main__":
