@@ -12,8 +12,12 @@ from .utils import verify_password, create_access_token
 from jose import JWTError, jwt
 from .utils import SECRET_KEY, ALGORITHM
 from fastapi import status
+from fastapi import HTTPException, Query
+import logging
+from typing import Optional
 
-
+# Функция фильтрации цен
+from fastapi import Depends
 
 
 # Функция для получения сессии с БД
@@ -23,10 +27,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-
-
 
 def login_user(db: Session, user_data: UserLogin):
     # Ищем пользователя по email
@@ -41,9 +41,6 @@ def login_user(db: Session, user_data: UserLogin):
     access_token = create_access_token(data={"sub": user.email})
 
     return {"token": access_token}
-
-
-
 
 # Функция для регистрации пользователя
 def register_user(db: Session, user: UserCreate):
@@ -62,7 +59,6 @@ def register_user(db: Session, user: UserCreate):
 
     return {"message": "Регистрация прошла успешно, поздравляю"}
 
-
 # Функция для получения цен по источникам
 def get_prices_by_source(db: Session, source: str):
     if source == "vbr":
@@ -74,8 +70,30 @@ def get_prices_by_source(db: Session, source: str):
     else:
         raise HTTPException(status_code=400, detail="Invalid source")
 
-
 # Функция для сравнения цен по валютам
+def compare_prices1(db: Session, from_currency: str, to_currency: str):
+    vbr_from = db.query(VBRPrice).filter(VBRPrice.currency.ilike(from_currency)).order_by(VBRPrice.timestamp.desc()).first()
+    investing_from = db.query(InvestingPrice).filter(InvestingPrice.currency.ilike(from_currency)).order_by(InvestingPrice.timestamp.desc()).first()
+    bitinfo_from = db.query(BitInfoPrice).filter(BitInfoPrice.currency.ilike(from_currency)).order_by(BitInfoPrice.timestamp.desc()).first()
+
+    vbr_to = db.query(VBRPrice).filter(VBRPrice.currency.ilike(to_currency)).order_by(VBRPrice.timestamp.desc()).first()
+    investing_to = db.query(InvestingPrice).filter(InvestingPrice.currency.ilike(to_currency)).order_by(InvestingPrice.timestamp.desc()).first()
+    bitinfo_to = db.query(BitInfoPrice).filter(BitInfoPrice.currency.ilike(to_currency)).order_by(BitInfoPrice.timestamp.desc()).first()
+
+    if not (vbr_from or investing_from or bitinfo_from) or not (vbr_to or investing_to or bitinfo_to):
+        raise HTTPException(status_code=404, detail="Currency not found in any source")
+
+    # Пример использования VBR данных
+    from_price = vbr_from.price if vbr_from else investing_from.price if investing_from else bitinfo_from.price
+    to_price = vbr_to.price if vbr_to else investing_to.price if investing_to else bitinfo_to.price
+
+    return {
+        "from_currency": from_currency,
+        "to_currency": to_currency,
+        "rate": from_price / to_price,
+        "converted_price": (from_price / to_price) * 1.0  # Пример с amount = 1
+    }
+
 def compare_prices(db: Session, currency: str):
     vbr = db.query(VBRPrice).filter(VBRPrice.currency.ilike(currency)).order_by(VBRPrice.timestamp.desc()).first()
     investing = db.query(InvestingPrice).filter(InvestingPrice.currency.ilike(currency)).order_by(InvestingPrice.timestamp.desc()).first()
@@ -93,6 +111,24 @@ def compare_prices(db: Session, currency: str):
         }
     }
 
+def convert_currency(db: Session, from_currency: str, to_currency: str, amount: float, source: str):
+    if not source:
+        raise HTTPException(status_code=400, detail="Source is required")
+
+    prices = compare_prices1(db, from_currency, to_currency)
+
+    # Получаем курс обмена
+    rate = prices["rate"]
+
+    # Конвертируем валюту и округляем до 2 знаков после запятой
+    converted_price = round(rate * amount, 2)
+
+    return {
+        "from_currency": from_currency,
+        "to_currency": to_currency,
+        "rate": round(rate, 2),  # Округляем и курс до 2 знаков
+        "converted_price": converted_price
+    }
 
 # Функция для получения максимальной цены по валюте
 def get_max_price(db: Session, currency: str):
@@ -122,7 +158,6 @@ def get_max_price(db: Session, currency: str):
         "source": source
     }
 
-
 # Функция для получения минимальной цены по валюте
 def get_min_price(db: Session, currency: str):
     vbr_min = db.query(VBRPrice).filter(VBRPrice.currency.ilike(currency)).order_by(VBRPrice.price.asc()).first()
@@ -150,13 +185,6 @@ def get_min_price(db: Session, currency: str):
         "min_price": min_price,
         "source": source
     }
-
-from fastapi import HTTPException, Query
-import logging
-from typing import Optional
-
-# Функция фильтрации цен
-from fastapi import Depends
 
 def filter_prices(db: Session, min_price: float, max_price: float, source: Optional[str] = None):
     if min_price is None or max_price is None:
@@ -205,7 +233,6 @@ def filter_prices(db: Session, min_price: float, max_price: float, source: Optio
         raise HTTPException(status_code=404, detail="No results found in the specified price range")
     
     return [{"currency": r.currency, "price": r.price, "source": r.source} for r in results]
-
 
 # Функция для получения топ-цен
 def get_top_prices(db: Session, limit: int):

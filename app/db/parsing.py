@@ -2,7 +2,6 @@ import requests
 from bs4 import BeautifulSoup
 import re
 
-
 class CryptoScraper:
     def __init__(self):
         self.vbr_url = "https://www.vbr.ru/crypto/"
@@ -67,7 +66,6 @@ class CryptoScraper:
 
         return bitinfo_data
 
-
 class CryptoDataProcessor:
     def __init__(self, scraper):
         self.scraper = scraper
@@ -98,7 +96,6 @@ class CryptoDataProcessor:
                 })
 
         return crypto_prices
-
 
 if __name__ == "__main__":
     scraper = CryptoScraper()
