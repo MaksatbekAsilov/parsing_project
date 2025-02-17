@@ -1,16 +1,16 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from .models import User, VBRPrice, InvestingPrice, BitInfoPrice
-from .schemas import UserCreate, CryptoPrice
-from .database import SessionLocal, engine
+from ..models.models import User, VBRPrice, InvestingPrice, BitInfoPrice
+from ..schemas.schemas import UserCreate, CryptoPrice
+from ..models.database import SessionLocal, engine
 from sqlalchemy import literal_column
-from .utils import hash_password
+from ..service.utils import hash_password
 from fastapi import Query
 import logging
-from .schemas import UserLogin
-from .utils import verify_password, create_access_token
+from ..schemas.schemas import UserLogin
+from ..service.utils import verify_password, create_access_token
 from jose import JWTError, jwt
-from .utils import SECRET_KEY, ALGORITHM
+from ..service.utils import SECRET_KEY, ALGORITHM
 from fastapi import status
 from fastapi import HTTPException, Query
 import logging

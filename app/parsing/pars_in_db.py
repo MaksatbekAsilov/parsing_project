@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 from contextlib import contextmanager
 from datetime import datetime
-from session import SessionLocal, VBRPrice, InvestingPrice, BitInfoPrice
+from app.db.session import SessionLocal, VBRPrice, InvestingPrice, BitInfoPrice
+# python -m app.parsing.pars_in_db
 
 
 class DatabaseManager:
@@ -82,7 +83,7 @@ class DatabaseManager:
 
 
 if __name__ == "__main__":
-    from parsing import CryptoScraper, CryptoDataProcessor
+    from app.parsing.parsing import CryptoScraper, CryptoDataProcessor
 
     # Создаём экземпляры классов
     scraper = CryptoScraper()
