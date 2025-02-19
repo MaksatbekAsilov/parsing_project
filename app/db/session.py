@@ -54,6 +54,4 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
-# Создание таблиц в базе данных
-if __name__ == "__main__":
-    Base.metadata.create_all(bind=engine)
+

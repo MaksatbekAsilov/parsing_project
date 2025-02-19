@@ -2,11 +2,15 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 import bcrypt
-import os
-import dotenv
 from fastapi import status, HTTPException
+import dotenv
+import os
+dotenv.load_dotenv()  # Загружаем переменные окружения
 
-dotenv.load_dotenv()
+# Теперь загружаем из .env
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")  # По умолчанию HS256
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
 # Эмулируем __about__, если его нет
 if not hasattr(bcrypt, "__about__"):
@@ -16,11 +20,6 @@ if not hasattr(bcrypt, "__about__"):
 
 # Настройка хеширования паролей
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# JWT параметры
-SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 # Функция для хеширования пароля
 def hash_password(password: str) -> str:
